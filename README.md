@@ -4,7 +4,7 @@ Script to let you merge two runs of the same campaign.
 
 ## How to use
 ```shell
-python merge.py <run_1_dir> <run_2_dir>
+python merge.py <run_1_dir> <run_2_dir> <merged_dir>
 ```
 
 ## How does it work
