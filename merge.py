@@ -39,6 +39,34 @@ if len(os.listdir(run2dir)) == 0:
     console.print(f"Error: {run2dir} is empty", style="bold red")
     sys.exit(1)
     
+def get_test_info(test):
+    # Get folder of test
+    test_folder = os.path.dirname(test)
+    
+    all_test_info = []
+    
+    # Get json files in test folder
+    json_files = [os.path.join(test_folder, file) for file in os.listdir(test_folder) if file.endswith(".json")]
+    
+    if len(json_files) > 1:
+        for file in json_files:
+            with open(file, "r") as f:
+                all_test_info.append(json.load(f))
+        
+        # Flatten the list of lists
+        all_test_info = [item for sublist in all_test_info for item in sublist]
+    else:
+        with open(json_files[0], "r") as f:
+            all_test_info = json.load(f)
+    
+    testname = os.path.basename(test)
+    
+    test_info = [item for item in all_test_info if item["test"].lower() == testname.lower()]
+    
+    assert(len(test_info) == 1)
+    
+    return test_info[0]
+    
 def create_table(list1, list2, title1, title2, transfer_history):
     table = Table(show_header=True, show_lines=True)
     table.add_column(title1)
@@ -133,6 +161,8 @@ tests = list(set(run1tests) & set(run2tests))
 
 unmerged_count = 0
 
+new_test_info = []
+
 transfer_history = []
 for test in tests:
     chosendir = None
@@ -155,6 +185,7 @@ for test in tests:
     
     elif run1status == "prolonged" and run2status == "prolonged":
         shutil.copytree(os.path.join(run1dir, test), os.path.join(mergedir, test))
+        new_test_info.append(get_test_info( os.path.join(run1dir, test) ))
         unmerged_count += 1
         continue
     
@@ -167,6 +198,7 @@ for test in tests:
     create_merged_folder_if_not_exists(mergedir)
     # # Copy the test to the merged folder
     shutil.copytree(chosendir, os.path.join(mergedir, test))
+    new_test_info.append(get_test_info(chosendir))
 
     transfer_history.append({
         "test": test,
@@ -178,6 +210,13 @@ for test in tests:
 non_intersection_tests = list(set(run1tests) ^ set(run2tests))
 for test in non_intersection_tests:
     shutil.copytree(os.path.join(run1dir, test), os.path.join(mergedir, test))
+    new_test_info.append(get_test_info( os.path.join(run1dir, test) ))
+    
+# Write the new test info to a json file
+with open(os.path.join(mergedir, "merged_progress.json"), "w") as f:
+    json.dump(new_test_info, f, indent=4)
+    
+assert(len(new_test_info) == ( len(transfer_history) + len(non_intersection_tests) + unmerged_count ))
     
 console.print(f"Merged {len(transfer_history)} tests.", style="bold green")
 console.print(f"Copied over {len(non_intersection_tests) + unmerged_count} tests.", style="bold green")
