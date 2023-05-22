@@ -9,6 +9,7 @@ from pprint import pprint
 
 from rich.console import Console
 from rich.table import Table
+from rich.progress import track
 
 console = Console()
 
@@ -62,10 +63,14 @@ def get_test_info(test):
             all_test_info = json.load(f)
     
     testname = os.path.basename(test)
-    
+
     test_info = [item for item in all_test_info if item["test"].lower() == testname.lower()]
     
-    assert(len(test_info) == 1)
+    try:
+        assert(len(test_info) == 1)
+    except:
+        return None
+    
     
     return test_info[0]
     
@@ -119,8 +124,11 @@ def create_merged_folder_if_not_exists(mergedir):
 run1tests = [x for x in os.listdir(run1dir) if os.path.isdir( os.path.join(run1dir, x) )]
 run2tests = [x for x in os.listdir(run2dir) if os.path.isdir( os.path.join(run2dir, x) )]
 
-# Get the test statuses from the json files
+# Move all output txt files to the merged folder
+run1_output_txt_files = [file for file in os.listdir(run1dir) if file.endswith(".txt") and 'output' in file]
+run2_output_txt_files = [file for file in os.listdir(run2dir) if file.endswith(".txt") and 'output' in file]
 
+# Get the test statuses from the json files
 run1jsons = [file for file in os.listdir(run1dir) if file.endswith(".json")]
 if len(run1jsons) == 0:
     console.print(f"Error: {run1dir} does not contain any json files", style="bold red")
@@ -166,7 +174,11 @@ unmerged_count = 0
 new_test_info = []
 
 transfer_history = []
-for test in tests:
+
+tests_count = len(tests)
+
+for i in track(range(tests_count), description="Merging tests..."):
+    test = tests[i]
     chosendir = None
     
     # Get the status of the test from both runs
@@ -210,16 +222,33 @@ for test in tests:
     
 # Create list of tests that are not in the intersection
 non_intersection_tests = list(set(run1tests) ^ set(run2tests))
-for test in non_intersection_tests:
+for i in track(range(len(non_intersection_tests)), description="Copying non-conflicting tests..."):
+    test = non_intersection_tests[i]
     shutil.copytree(os.path.join(run1dir, test), os.path.join(mergedir, test))
     new_test_info.append(get_test_info( os.path.join(run1dir, test) ))
     
+# Move all output txt files to the merged folder
+run1_output_txt_files = [file for file in os.listdir(run1dir) if file.endswith(".txt") and 'output' in file]
+run2_output_txt_files = [file for file in os.listdir(run2dir) if file.endswith(".txt") and 'output' in file]
+
+for file in run1_output_txt_files:
+    try:
+        shutil.copyfile(os.path.join(run1dir, file), os.path.join(mergedir, file))
+    except FileNotFoundError:
+        continue
+    
+for file in run2_output_txt_files:
+    try:
+        shutil.copyfile(os.path.join(run1dir, file), os.path.join(mergedir, file))
+    except FileNotFoundError:
+        continue
+
 # Write the new test info to a json file
 with open(os.path.join(mergedir, "merged_progress.json"), "w") as f:
     json.dump(new_test_info, f, indent=4)
     
 assert(len(new_test_info) == ( len(transfer_history) + len(non_intersection_tests) + unmerged_count ))
     
+console.print(create_table(run1tests, run2tests, run1dir, run2dir, transfer_history), style="bold white")
 console.print(f"Merged {len(transfer_history)} tests.", style="bold green")
 console.print(f"Copied over {len(non_intersection_tests) + unmerged_count} tests.", style="bold green")
-console.print(create_table(run1tests, run2tests, run1dir, run2dir, transfer_history), style="bold white")
