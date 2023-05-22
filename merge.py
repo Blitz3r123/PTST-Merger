@@ -181,9 +181,18 @@ for i in track(range(tests_count), description="Merging tests..."):
     test = tests[i]
     chosendir = None
     
+    
     # Get the status of the test from both runs
-    run1_info = [x for x in run1statuses if x["test"] == test][0]
-    run2_info = [x for x in run2statuses if x["test"] == test][0]
+    try:
+        run1_info = [x for x in run1statuses if x["test"] == test][0]
+    except IndexError:
+        console.print(f"Couldn't find info for {test} in {run1dir}.", style="bold red")
+        continue
+    try:
+        run2_info = [x for x in run2statuses if x["test"] == test][0]
+    except IndexError:
+        console.print(f"Couldn't find info for {test} in {run2dir}.", style="bold red")
+        continue
     
     run1status = run1_info["status"]
     run2status = run2_info["status"]
